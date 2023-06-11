@@ -13,7 +13,7 @@ void* mallocBlock(size_t size)
 #ifdef DEBUG
             fputs("Memory Allocation Error!", stderr);
 #endif
-            Sleep(500);
+            Sleep(50);
         }
     } while(buffer == NULL);
     
@@ -32,7 +32,7 @@ void* callocBlock(size_t num, size_t size)
 #ifdef DEBUG
             fputs("Memory Allocation Error!", stderr);
 #endif
-            Sleep(500);
+            Sleep(50);
         }
     } while(buffer == NULL);
 
@@ -51,7 +51,7 @@ void* reallocBlock(void* buffer, size_t newsize)
 #ifdef DEBUG
             fputs("Memory Allocation Error!", stderr);
 #endif
-            Sleep(500);
+            Sleep(50);
         }
     } while(temp == NULL);
 

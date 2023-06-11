@@ -19,39 +19,13 @@ LPTSTR getCwd()
             fprintf(stderr, "Cwd Size Not Equal to written!: %ld\n", GetLastError());
 #endif
             free(cwd);
-            Sleep(1000);
+            Sleep(100);
             continue;
         }
         break;
     }
 
-    size_t slashCount = 0;
-    for(size_t i = 0; i < size; ++i)
-    {
-        if(cwd[i] == '\\')
-            slashCount++;
-    }
-
-    // Slash Escaped Current Working Directory
-    char* secwd = mallocBlock(size+slashCount);
-    
-    size_t c = 0;
-    for(size_t i = 0; i < size; ++i)
-    {
-        if(cwd[i] != '\\')
-            secwd[c] = cwd[i];
-        else
-        {
-            secwd[c] = cwd[i];
-            secwd[c+1] = cwd[i];
-            c++;
-        }
-        c++;
-    }
-
-    secwd[size+slashCount-1] = 0x00;
-
-    return secwd;
+    return cwd;
 }
 
 
@@ -72,7 +46,7 @@ void _spawnProcess(LPSTR cmd)
     char* proc = mallocBlock(cmdLen + 12);
     memcpy(proc, "cmd.exe /c ", 11);
     memcpy(proc+11, cmd, cmdLen);
-    proc[cmdLen + 12] = 0x00;
+    proc[cmdLen + 11] = 0x00;
 
     while(TRUE)
     {
@@ -82,7 +56,7 @@ void _spawnProcess(LPSTR cmd)
 #ifdef DEBUG
             fprintf(stderr, "Couldn't Spawn Process: %ld\n", GetLastError());
 #endif
-            Sleep(1000);
+            Sleep(200);
             continue;
         }
         break;
@@ -97,7 +71,7 @@ LPSTR _rdPipe()
 
     while(TRUE)
     {
-        DWORD result = WaitForSingleObject(procInfo.hProcess, INFINITE);
+        DWORD result = WaitForSingleObject(procInfo.hProcess, 10000);
         if(result == WAIT_FAILED)
         {
 #ifdef DEBUG
@@ -106,12 +80,7 @@ LPSTR _rdPipe()
             continue;
         }
         if( result == WAIT_TIMEOUT )
-        {
-#ifdef DEBUG
-            puts("Wait Timed Out"); 
-#endif
-            return NULL;
-        }
+            return "Waiting for output Timed Out";
         break;
     }
 
@@ -127,7 +96,6 @@ LPSTR _rdPipe()
     } while( err != TRUE );
 
     char* buffer = mallocBlock(buffSize+1);
-    DWORD temp;
     do {
         err = PeekNamedPipe(procOutRd, buffer, buffSize+1, NULL, NULL, NULL);
 #ifdef DEBUG
@@ -160,7 +128,7 @@ LPSTR getOutput(LPSTR cmd)
 #ifdef DEBUG
             fprintf(stderr, "Create Pipe Error: %ld\n", GetLastError());
 #endif
-            Sleep(500);
+            Sleep(100);
             continue;
         }
         break;

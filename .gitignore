@@ -1,3 +1,4 @@
 build
 CMakeOptions.json
 .cache
+CMakeLists.txt.user

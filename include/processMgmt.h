@@ -5,6 +5,8 @@
 #include <stdio.h>
 #endif
 
+#include <stdlib.h>
+
 #include <windows.h>
 
 static HANDLE procOutRd = NULL;

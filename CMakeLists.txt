@@ -1,14 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
 
 # Genearete "compile_commands.json" for ease of C lintering
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+#set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_SYSTEM_NAME Windows)
-set(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc)
+#set(CMAKE_SYSTEM_NAME Windows)
+#set(CMAKE_C_COMPILER x86_64-w64-mingw32-gcc)
 
 # Stripping for better Obfuscation
-set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
-set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} -s")
+#set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -s")
+#set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} -s")
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE Release)
@@ -48,9 +48,6 @@ if(HOSTNAME STREQUAL "")
   message(SEND_ERROR "No Hostname Specified!\n use -DHOSTNAME=\"Target IP/Hostname\"")
 endif()
 
-# Set C Version
-set(CMAKE_C_STANDARD 11)
-
 # Auto generate config header
 configure_file("${PROJECT_SOURCE_DIR}/Config.h.in" ${CONFIGFILE})
 configure_file("${PROJECT_SOURCE_DIR}/resource/logo.rc.in" "logo.rc")
@@ -61,19 +58,28 @@ file(GLOB src
   )
 
 file(GLOB include 
-  "${PROJECT_SOURCE_DIR}/include/*.h")
-
-# Create executable
-add_executable(${EXENAME} ${src} ${include})
-
-# Pass CONFIGFILE to project as a preprocessor ( to be included easily )
-target_compile_definitions(${EXENAME} PRIVATE CONFIG="${CONFIGFILE}")
+    "${PROJECT_SOURCE_DIR}/include/*.h"
+    "${PROJECT_SOURCE_DIR}/include/json/*.h"
+)
 
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Release" CACHE STRING
       "Choose the type of build, options are: Debug Release RelWithDebInfo MinSizeRel."
       FORCE)
 endif(NOT CMAKE_BUILD_TYPE)
+
+# Create executable
+
+if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+    add_executable(${EXENAME} ${src} ${include})
+elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
+    add_executable(${EXENAME} ${src} ${include})
+else()
+    add_executable(${EXENAME} WIN32 ${src} ${include})
+endif()
+
+# Pass CONFIGFILE to project as a preprocessor ( to be included easily )
+target_compile_definitions(${EXENAME} PRIVATE CONFIG="${CONFIGFILE}")
 
 # Pass build type to project
 if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
@@ -88,4 +94,5 @@ target_include_directories(${EXENAME} PUBLIC
   ${PROJECT_BINARY_DIR}
   )
 
-target_link_libraries( ${EXENAME} PRIVATE winhttp )
+target_link_directories( ${EXENAME} PRIVATE "${PROJECT_SOURCE_DIR}/lib")
+target_link_libraries( ${EXENAME} PRIVATE winhttp json)
